@@ -1,0 +1,205 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CalculateGaussianNoise
+#pragma kernel UpdateHeightSpectrum
+#pragma kernel HorizontalFFT
+#pragma kernel VerticalFFT
+#pragma kernel CorrectSignPhase0
+#pragma kernel CorrectSignPhase1
+#pragma kernel CorrectSignPhase2
+
+#include "Assets/Shader/NoiseHelper.cginc"
+#include "Assets/Shader/StatisticalOceanModel.cginc"
+
+int N;
+float A;
+int spreadingModelType;
+float L;
+float windDirRadian;
+float windSpeed;
+float dirDepend;
+float time;
+float4 windAndSeed;
+
+RWTexture2D<float2> GaussianNoiseTexture;
+RWTexture2D<float2> HeightSpectrumTexture;
+
+[numthreads(8,8,1)]
+void CalculateGaussianNoise(uint3 threadId:SV_DispatchThreadID)
+{
+    float2 noise = GaussianNoise_BoxMullerMethod(threadId.xy, N);
+    GaussianNoiseTexture[threadId.xy] = noise;
+}
+
+[numthreads(32,32,1)]
+void UpdateHeightSpectrum(uint3 threadId:SV_DispatchThreadID)
+{
+    float2 noise = GaussianNoiseTexture[threadId.xy];
+
+    float tIdx = threadId.x;
+    float tIdy = threadId.y;
+
+    // float n = tIdx - N / 2.0f;
+    // float m = tIdy - N / 2.0f;
+
+    // float kx = 2.0f * PI * n / L;
+    // float ky = 2.0f * PI * m / L;
+
+    // L == domainSize
+    // float n = tidX / rtSize.x * domainSize - domainSize / 2.0f;
+    // float m = tidY / rtSize.y  * domainSize - domainSize / 2.0f;
+	
+    // float kx = (2.0f * PI * n) / domainSize;
+    // float ky = (2.0f * PI * m) / domainSize;
+
+    float kx = (2.0f * PI * tIdx / N) - PI;
+    float ky = (2.0f * PI * tIdy / N) - PI;
+    float2 k = float2(kx,ky);
+    float2 heightSpectrum = CalHeightSpectrum(spreadingModelType, k, noise, windSpeed,A,windDirRadian,dirDepend,time,windAndSeed);
+    HeightSpectrumTexture[threadId.xy] = heightSpectrum;
+}
+
+// FFT Size
+int fftIteration;
+// FFT or IFFT
+int isReverse;
+
+int p;
+int Ns;
+
+RWTexture2D<float2> fftIn;
+RWTexture2D<float2> fftOut;
+
+// threadId is index of butterfly
+[numthreads(32,32,1)]
+void CorrectSignPhase0(uint3 threadId:SV_DispatchThreadID)
+{
+	float2 input = fftIn[threadId.xy];
+	// pow(-1,threadId.x)
+	fftOut[threadId.xy] = input * RealPow(-1,threadId.x);
+}
+
+// // threadId is index of butterfly
+// [numthreads(32,32,1)]
+// void HorizontalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	int p = pow(2,fftIteration);
+// 	int2 iLeftIndex = int2(floor(threadId.x / (p * 2)) * p + threadId.x % p,threadId.y);
+// 	int2 iRightIndex = int2(iLeftIndex.x + N / 2,threadId.y);
+//
+// 	int k = threadId.x % p;
+// 	
+// 	int2 oLeftIndex = int2(floor(threadId.x / p) * (p * 2) + threadId.x % p,threadId.y);
+// 	int2 oRightIndex = int2(oLeftIndex.x + p,threadId.y);
+//
+// 	float theta = float(k) / p;
+// 	// float theta = isReverse ? float(k) / p : -float(k) / p;
+//
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[oLeftIndex] = f0 + f1;
+// 	fftOut[oRightIndex] = f0 - f1;
+// }
+
+//横向FFT计算,只针对第m-1阶段，最后一阶段需要特殊处理
+[numthreads(8, 8, 1)]
+void HorizontalFFT(uint3 id: SV_DispatchThreadID)
+{
+	int2 idxs = id.xy;
+	idxs.x = floor(id.x / (Ns * 2.0f)) * Ns + id.x % Ns;
+	float angle = 2.0f * PI * (id.x / (Ns * 2.0f));
+	float2 w = float2(cos(angle), sin(angle));
+
+	float2 x0 = fftIn[idxs].xy;
+	float2 x1 = fftIn[int2(idxs.x + N * 0.5f, idxs.y)].xy;
+
+	float2 output = x0 + float2(w.x * x1.x - w.y * x1.y, w.x * x1.y + w.y * x1.x);
+	fftOut[id.xy] = float4(output, 0, 0);
+}
+//纵向FFT计算,只针对第m-1阶段，最后一阶段需要特殊处理
+[numthreads(8, 8, 1)]
+void VerticalFFT(uint3 id: SV_DispatchThreadID)
+{
+	int2 idxs = id.xy;
+	idxs.y = floor(id.y / (Ns * 2.0f)) * Ns + id.y % Ns;
+	float angle = 2.0f * PI * (id.y / (Ns * 2.0f));
+	float2 w = float2(cos(angle), sin(angle));
+
+	float2 x0 = fftIn[idxs].xy;
+	float2 x1 = fftIn[int2(idxs.x, idxs.y + N * 0.5f)].xy;
+
+	float2 output = x0 + float2(w.x * x1.x - w.y * x1.y, w.x * x1.y + w.y * x1.x);
+	fftOut[id.xy] = float4(output, 0, 0);
+}
+
+// threadId is index of butterfly
+// [numthreads(8,8,1)]
+// void HorizontalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	Ns = pow(2,fftIteration);
+// 	int Ns2 = Ns * 2.0f;
+// 	int2 iLeftIndex = int2(floor(threadId.x / Ns2) * Ns + threadId.x % Ns,threadId.y);
+// 	int2 iRightIndex = int2(iLeftIndex.x + N / 2,threadId.y);
+//
+// 	float theta = 2.0f * (threadId.x / Ns2);
+// 	
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[threadId.xy] = f0 + f1;
+// }
+//
+// // threadId is index of butterfly
+// [numthreads(32,32,1)]
+// void CorrectSignPhase1(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	fftOut[threadId.xy] = fftIn[threadId.xy] * RealPow(-1,threadId.y + threadId.x - N / 2);
+// }
+//
+// [numthreads(8,8,1)]
+// void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	Ns = pow(2,fftIteration);
+// 	int Ns2 = Ns * 2.0f;
+// 	
+// 	int2 iLeftIndex = int2(threadId.x,floor(threadId.y / Ns2) * Ns + threadId.y % Ns);
+// 	int2 iRightIndex = int2(threadId.x,iLeftIndex.y + N / 2);	
+//
+// 	float theta = 2.0f * (threadId.y / Ns2);
+// 	
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[threadId.xy] = f0 + f1;
+// }
+
+// [numthreads(32,32,1)]
+// void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	int p = pow(2,fftIteration);
+// 	int2 iLeftIndex = int2(threadId.x,floor(threadId.y / (p * 2)) * p + threadId.y % p);
+// 	int2 iRightIndex = int2(threadId.x,iLeftIndex.y + N / 2);	
+//
+// 	int k = threadId.y % p;
+// 	
+// 	int2 oLeftIndex = int2(threadId.x,floor(threadId.y / p) * (p * 2) + threadId.y % p);
+// 	int2 oRightIndex = int2(threadId.x,oLeftIndex.y + p);
+//
+// 	float theta = float(k) / p;
+// 	// float theta = isReverse ? float(k) / p : -float(k) / p;
+//
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[oLeftIndex] = f0 + f1;
+// 	fftOut[oRightIndex] = f0 - f1;
+// }
+
+// threadId is index of butterfly
+[numthreads(32,32,1)]
+void CorrectSignPhase2(uint3 threadId:SV_DispatchThreadID)
+{
+	float2 tmp = fftIn[threadId.xy] * RealPow(-1,threadId.y - N / 2);
+	fftOut[threadId.xy] = tmp;
+}
+
