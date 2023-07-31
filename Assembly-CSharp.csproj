@@ -51,6 +51,7 @@
      <None Include="Assets\Shader\StatisticalOceanModel.cginc" />
      <Folder Include="Assets\Material" />
      <None Include="Assets\Shader\OceanComputeShader.compute" />
+     <None Include="Assets\Shader\Ocean.shader" />
      <None Include="Assets\Shader\Constant.cginc" />
      <Folder Include="Assets\Scenes" />
      <Folder Include="Assets\Tmp" />

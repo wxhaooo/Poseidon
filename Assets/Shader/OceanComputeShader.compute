@@ -3,9 +3,11 @@
 #pragma kernel UpdateHeightSpectrum
 #pragma kernel HorizontalFFT
 #pragma kernel VerticalFFT
-#pragma kernel CorrectSignPhase0
-#pragma kernel CorrectSignPhase1
-#pragma kernel CorrectSignPhase2
+#pragma kernel CalculateDisplacementField
+
+// #pragma kernel CorrectSignPhase0
+// #pragma kernel CorrectSignPhase1
+// #pragma kernel CorrectSignPhase2
 
 #include "Assets/Shader/NoiseHelper.cginc"
 #include "Assets/Shader/StatisticalOceanModel.cginc"
@@ -58,116 +60,121 @@ void UpdateHeightSpectrum(uint3 threadId:SV_DispatchThreadID)
     HeightSpectrumTexture[threadId.xy] = heightSpectrum;
 }
 
-// FFT Size
-int fftIteration;
-// FFT or IFFT
-int isReverse;
 
-int p;
+// FFT
+
 int Ns;
 
 RWTexture2D<float2> fftIn;
 RWTexture2D<float2> fftOut;
 
-// // threadId is index of butterfly
-// [numthreads(32,32,1)]
-// void HorizontalFFT(uint3 threadId:SV_DispatchThreadID)
-// {
-// 	int p = pow(2,fftIteration);
-// 	int2 iLeftIndex = int2(floor(threadId.x / (p * 2)) * p + threadId.x % p,threadId.y);
-// 	int2 iRightIndex = int2(iLeftIndex.x + N / 2,threadId.y);
-//
-// 	int k = threadId.x % p;
-// 	
-// 	int2 oLeftIndex = int2(floor(threadId.x / p) * (p * 2) + threadId.x % p,threadId.y);
-// 	int2 oRightIndex = int2(oLeftIndex.x + p,threadId.y);
-//
-// 	float theta = float(k) / p;
-// 	// float theta = isReverse ? float(k) / p : -float(k) / p;
-//
-// 	float2 f0 = fftIn[iLeftIndex];
-// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
-//
-// 	fftOut[oLeftIndex] = f0 + f1;
-// 	fftOut[oRightIndex] = f0 - f1;
-// }
-
-// [numthreads(32,32,1)]
-// void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
-// {
-// 	int p = pow(2,fftIteration);
-// 	int2 iLeftIndex = int2(threadId.x,floor(threadId.y / (p * 2)) * p + threadId.y % p);
-// 	int2 iRightIndex = int2(threadId.x,iLeftIndex.y + N / 2);	
-//
-// 	int k = threadId.y % p;
-// 	
-// 	int2 oLeftIndex = int2(threadId.x,floor(threadId.y / p) * (p * 2) + threadId.y % p);
-// 	int2 oRightIndex = int2(threadId.x,oLeftIndex.y + p);
-//
-// 	float theta = float(k) / p;
-// 	// float theta = isReverse ? float(k) / p : -float(k) / p;
-//
-// 	float2 f0 = fftIn[iLeftIndex];
-// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
-//
-// 	fftOut[oLeftIndex] = f0 + f1;
-// 	fftOut[oRightIndex] = f0 - f1;
-// }
-
 // threadId is index of butterfly
 [numthreads(32,32,1)]
 void HorizontalFFT(uint3 threadId:SV_DispatchThreadID)
 {
-	// 一开始Ns2是int，精度不够，在shader里面尽量用float吧
-	float Ns2 = Ns * 2.0f;
-	int2 iLeftIndex = int2(floor(threadId.x / Ns2) * Ns + threadId.x % Ns, threadId.y);
-	int2 iRightIndex = int2(iLeftIndex.x + N * 0.5f, iLeftIndex.y);	
+	int2 iLeftIndex = threadId.xy;
+	int2 iRightIndex = int2(iLeftIndex.x + N * 0.5f,threadId.y);
 
-	float theta = 2.0f * PI * (threadId.x / Ns2);
+	int k = threadId.x & (Ns - 1);
 	
+	int2 oLeftIndex = int2((threadId.x << 1) - k,threadId.y);
+	int2 oRightIndex = int2(oLeftIndex.x + Ns,threadId.y);
+
+	float theta = float(k) / Ns * PI;
+
 	float2 f0 = fftIn[iLeftIndex];
 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
 
-	fftOut[threadId.xy] = f0 + f1;
+	fftOut[oLeftIndex] = f0 + f1;
+	fftOut[oRightIndex] = f0 - f1;
 }
 
 [numthreads(32,32,1)]
 void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
 {
-	// 一开始Ns2是int，精度不够，在shader里面尽量用float吧
-	float Ns2 = Ns * 2.0f;
-	int2 iLeftIndex = int2(threadId.x,floor(threadId.y / Ns2) * Ns + threadId.y % Ns);
-	int2 iRightIndex = int2(iLeftIndex.x, iLeftIndex.y + N * 0.5f);
+	int2 iLeftIndex = threadId.xy;
+	int2 iRightIndex = int2(threadId.x,iLeftIndex.y + N * 0.5f);	
 
-	float theta = 2.0f * PI * (threadId.y / Ns2);
+	int k = threadId.y & (Ns - 1);
 	
+	int2 oLeftIndex = int2(threadId.x,(threadId.y << 1) - k);
+	int2 oRightIndex = int2(threadId.x,oLeftIndex.y + Ns);
+
+	float theta = float(k) / Ns * PI;
+
 	float2 f0 = fftIn[iLeftIndex];
 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
 
-	fftOut[threadId.xy] = f0 + f1;
+	fftOut[oLeftIndex] = f0 + f1;
+	fftOut[oRightIndex] = f0 - f1;
 }
 
+// another fft form https://zhuanlan.zhihu.com/p/96811613 
 // threadId is index of butterfly
-[numthreads(32,32,1)]
-void CorrectSignPhase0(uint3 threadId:SV_DispatchThreadID)
-{
-	float2 input = fftIn[threadId.xy];
-	// pow(-1,threadId.x)
-	fftOut[threadId.xy] = input * RealPow(-1,threadId.x);
-}
+// [numthreads(32,32,1)]
+// void HorizontalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	// 一开始Ns2是int，精度不够，在shader里面尽量用float吧
+// 	float Ns2 = Ns * 2.0f;
+// 	int2 iLeftIndex = int2(floor(threadId.x / Ns2) * Ns + threadId.x % Ns, threadId.y);
+// 	int2 iRightIndex = int2(iLeftIndex.x + N * 0.5f, iLeftIndex.y);	
+//
+// 	float theta = 2.0f * PI * (threadId.x / Ns2);
+// 	
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[threadId.xy] = f0 + f1;
+// }
+//
+// [numthreads(32,32,1)]
+// void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	// 一开始Ns2是int，精度不够，在shader里面尽量用float吧
+// 	float Ns2 = Ns * 2.0f;
+// 	int2 iLeftIndex = int2(threadId.x,floor(threadId.y / Ns2) * Ns + threadId.y % Ns);
+// 	int2 iRightIndex = int2(iLeftIndex.x, iLeftIndex.y + N * 0.5f);
+//
+// 	float theta = 2.0f * PI * (threadId.y / Ns2);
+// 	
+// 	float2 f0 = fftIn[iLeftIndex];
+// 	float2 f1 = ComplexMultiply(fftIn[iRightIndex],ExpTheta(theta));
+//
+// 	fftOut[threadId.xy] = f0 + f1;
+// }
 
-// threadId is index of butterfly
-[numthreads(32,32,1)]
-void CorrectSignPhase1(uint3 threadId:SV_DispatchThreadID)
-{
-	fftOut[threadId.xy] = fftIn[threadId.xy] * RealPow(-1,threadId.y + threadId.x - N / 2);
-}
+// // threadId is index of butterfly
+// [numthreads(32,32,1)]
+// void CorrectSignPhase0(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	float2 input = fftIn[threadId.xy];
+// 	// pow(-1,threadId.x)
+// 	fftOut[threadId.xy] = input * RealPow(-1,threadId.x);
+// }
+//
+// // threadId is index of butterfly
+// [numthreads(32,32,1)]
+// void CorrectSignPhase1(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	fftOut[threadId.xy] = fftIn[threadId.xy] * RealPow(-1,threadId.y + threadId.x - N / 2);
+// }
+//
+// // threadId is index of butterfly
+// [numthreads(32,32,1)]
+// void CorrectSignPhase2(uint3 threadId:SV_DispatchThreadID)
+// {
+// 	float2 tmp = fftIn[threadId.xy] * RealPow(-1,threadId.y - N / 2);
+// 	fftOut[threadId.xy] = tmp;
+// }
 
-// threadId is index of butterfly
-[numthreads(32,32,1)]
-void CorrectSignPhase2(uint3 threadId:SV_DispatchThreadID)
-{
-	float2 tmp = fftIn[threadId.xy] * RealPow(-1,threadId.y - N / 2);
-	fftOut[threadId.xy] = tmp;
-}
+// scale
+float heightScale;
+RWTexture2D<float2> heightField;
+RWTexture2D<float4> displacementField;
 
+[numthreads(32,32,1)]
+void CalculateDisplacementField(uint3 threadId:SV_DispatchThreadID)
+{
+	float y = length(heightField[threadId.xy]) / (N * N) * heightScale;
+	displacementField[threadId.xy] = float4(0.0f,y,0.0f,0.0f);
+}
