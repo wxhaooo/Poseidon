@@ -53,7 +53,7 @@ public class OceanActor : MonoBehaviour
 	
     [SerializeField]
     private RenderTexture _gaussianRandomRT;
-    
+
     public RenderTexture GaussianRandomRT => _gaussianRandomRT;
     
     [SerializeField]
@@ -78,10 +78,6 @@ public class OceanActor : MonoBehaviour
     private int _kerUpdateHeightSpectrum;
     private int _kerHorizontalFFT;
     private int _kerVerticalFFT;
-	
-    [SerializeField]
-    private Texture2D _heightSpectrumTexCPU;
-    public Texture2D HeightSpectrumTexCPU => _heightSpectrumTexCPU;
 
     private int _fftPower = 0;
 
@@ -126,6 +122,9 @@ public class OceanActor : MonoBehaviour
 	    {
 		    _gaussianRandomRT.Release();
 		    _heightSpectrumRT.Release();
+		    _heightFieldRT.Release();
+		    _fftInRT.Release();
+		    _fftOutRT.Release();
 	    }
 
 	    _gaussianRandomRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
@@ -137,8 +136,6 @@ public class OceanActor : MonoBehaviour
 	    
 	    _tmpRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 
-	    _heightSpectrumTexCPU = new Texture2D(MeshSize, MeshSize, TextureFormat.RGFloat,true);
-
 	    _kerCalculateGaussianNoise = OceanComputeShader.FindKernel("CalculateGaussianNoise");
 	    _kerUpdateHeightSpectrum = OceanComputeShader.FindKernel("UpdateHeightSpectrum");
 	    _kerHorizontalFFT = OceanComputeShader.FindKernel("HorizontalFFT");
@@ -146,89 +143,53 @@ public class OceanActor : MonoBehaviour
 	    
 	    OceanComputeShader.SetInt("N", MeshSize);
 	    OceanComputeShader.SetTexture(_kerCalculateGaussianNoise, "GaussianNoiseTexture", _gaussianRandomRT);
-
+	    
 	    OceanComputeShader.Dispatch(_kerCalculateGaussianNoise,
-		    MeshSize / 8, MeshSize / 8, 1);
+		    MeshSize / 32, MeshSize / 32, 1);
     }
 
     private void ComputeOcean()
     {
 	    _totalRuntimeTime += Time.deltaTime * TimeScale;
+	    
 	    UpdateHeightSpectrum();
 	    CalculateHeightField();
     }
-    
+
     private void CalculateHeightField()
     {
-	    //进行横向FFT
-	    for (int m = 0; m < _fftPower; m++)
-	    {
-		    int ns = (int)Mathf.Pow(2, m);
-		    OceanComputeShader.SetInt("Ns", ns);
-		    ComputeFFT(_kerHorizontalFFT, ref _heightSpectrumRT);
-	    }
-	    //进行纵向FFT
-	    for (int m = 0; m < _fftPower; m++)
-	    {
-		    int ns = (int)Mathf.Pow(2, m);
-		    OceanComputeShader.SetInt("Ns", ns);
-		    ComputeFFT(_kerVerticalFFT, ref _heightSpectrumRT);
-	    }
-    }
-
-  //   private void CalculateHeightField()
-  //   {
-		// // Horizontal FFT
-		// OceanComputeShader.SetInt("isReverse", 1);
-  //
-		// // Graphics.CopyTexture(HeightSpectrumRT,_fftInRT);
-		//
-		// for (int i = 0; i < _fftPower; i++)
-		// {
-		// 	OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
-		// 	// OceanComputeShader.SetInt("fftIteration", i);
-		// 	OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftIn", _fftInRT);
-		// 	OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftOut", _fftOutRT);
-		// 	
-		// 	OceanComputeShader.Dispatch(_kerHorizontalFFT, MeshSize / 8, MeshSize / 8, 1);
-		// 	
-		// 	//交换输入输出纹理
-		// 	RenderTexture rt = _fftInRT;
-		// 	_fftInRT = _fftOutRT;
-		// 	_fftOutRT = rt;
-		// 	// Graphics.CopyTexture(_fftOutRT,_fftInRT);
-		// }
-		//
-		// // Vertical FFT
-		// for (int i = 0; i < _fftPower; i++)
-		// {
-		// 	OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
-		// 	// OceanComputeShader.SetInt("fftIteration", i);
-		// 	OceanComputeShader.SetTexture(_kerVerticalFFT, "fftIn", _fftInRT);
-		// 	OceanComputeShader.SetTexture(_kerVerticalFFT, "fftOut", _fftOutRT);
-		// 	
-		// 	OceanComputeShader.Dispatch(_kerVerticalFFT, MeshSize / 8, MeshSize / 8, 1);
-		// 	
-		// 	RenderTexture rt = _fftInRT;
-		// 	_fftInRT = _fftOutRT;
-		// 	_fftOutRT = rt;
-		// 	// Graphics.CopyTexture(_fftOutRT,_fftInRT);
-		// }
-	 //
-		// Graphics.CopyTexture(_fftInRT,_heightFieldRT);
-  //   }
-    
-    //计算fft
-    private void ComputeFFT(int kernel, ref RenderTexture input)
-    {
-	    OceanComputeShader.SetTexture(kernel, "fftIn", input);
-	    OceanComputeShader.SetTexture(kernel, "fftOut", _tmpRT);
-	    OceanComputeShader.Dispatch(kernel, MeshSize / 8, MeshSize / 8, 1);
-
-	    //交换输入输出纹理
-	    RenderTexture rt = input;
-	    input = _tmpRT;
-	    _tmpRT = rt;
+		// Horizontal FFT
+		OceanComputeShader.SetInt("isReverse", 1);
+  
+		Graphics.CopyTexture(HeightSpectrumRT,_fftInRT);
+		
+		for (int i = 0; i < _fftPower; i++)
+		{
+			OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
+			// OceanComputeShader.SetInt("fftIteration", i);
+			OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftIn", _fftInRT);
+			OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftOut", _fftOutRT);
+			
+			OceanComputeShader.Dispatch(_kerHorizontalFFT, MeshSize / 32, MeshSize / 32, 1);
+			
+			//交换输入输出纹理
+			Graphics.CopyTexture(_fftOutRT,_fftInRT);
+		}
+		
+		// Vertical FFT
+		for (int i = 0; i < _fftPower; i++)
+		{
+			OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
+			// OceanComputeShader.SetInt("fftIteration", i);
+			OceanComputeShader.SetTexture(_kerVerticalFFT, "fftIn", _fftInRT);
+			OceanComputeShader.SetTexture(_kerVerticalFFT, "fftOut", _fftOutRT);
+			
+			OceanComputeShader.Dispatch(_kerVerticalFFT, MeshSize / 32, MeshSize / 32, 1);
+			
+			Graphics.CopyTexture(_fftOutRT,_fftInRT);
+		}
+	 
+		Graphics.CopyTexture(_fftInRT,_heightFieldRT);
     }
 
     private void UpdateHeightSpectrum()

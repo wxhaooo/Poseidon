@@ -362,7 +362,8 @@ MonoBehaviour:
   _heightFieldRT: {fileID: 0}
   _fftInRT: {fileID: 0}
   _fftOutRT: {fileID: 0}
-  _heightSpectrumTexCPU: {fileID: 0}
+  GaussianRandomTexCPU: {fileID: 2800000, guid: 8300bc486ce4cdb48ad39ddac44ffe49, type: 3}
+  HeightSpectrumTexCPU: {fileID: 0}
 --- !u!33 &1807868950
 MeshFilter:
   m_ObjectHideFlags: 0

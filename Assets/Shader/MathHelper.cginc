@@ -16,7 +16,6 @@ float2 ComplexMultiply(float2 c1, float2 c2)
 
 float2 ExpTheta(float theta)
 {
-    theta *= PI;
     return float2(cos(theta),sin(theta));
 }
 

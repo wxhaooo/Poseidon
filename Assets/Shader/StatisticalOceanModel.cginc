@@ -58,14 +58,15 @@ float DonelanBannerDirectionalSpreading(float2 k, float windDirRadian, float win
 	{
 		betaS = 2.28f * pow(ratio,-1.3f);
 	}
-	else if(ratio >= 1.6f)
+	else if(ratio > 1.6f)
 	{
 		float eps = -0.4f + 0.8393f * exp(-0.567f * log(ratio * ratio));
 		betaS = pow(10,eps);
 	}
 
 	float theta = atan2(k.y, k.x) - atan2(windAndSeed.y, windAndSeed.x);
-	return betaS / max(0.0001f,2.0f * tanh(betaS * PI)) * pow(cosh(betaS * theta),2);
+	// 这里的括号写错了
+	return betaS / max(1e-7f,2.0f * tanh(betaS * PI) * pow(cosh(betaS * theta),2));
 }
 
 // float DonelanBannerDirectionalSpreading(float2 k,float windDirRadian,float windSpeed,float4 windAndSeed)
@@ -128,6 +129,7 @@ float2 CalHeightSpectrum(int spreadingModelType, float2 k, float2 noise, float w
 	float s = sin(omega);
 
 	float2 hTilde = ComplexMultiply(h0,float2(c,s));
+	// 符号写错， 写成了float2(-c,-s)
 	float2 HTildeConjugate = ComplexMultiply(h0Star,float2(c,-s));
 
 	return hTilde + HTildeConjugate;

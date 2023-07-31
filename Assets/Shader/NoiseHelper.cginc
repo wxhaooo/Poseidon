@@ -54,8 +54,8 @@ float UniformRandom()
 // https://en.wikipedia.org/wiki/Normal_distribution#Generating_values_from_normal_distribution
 float2 GaussianNoise_BoxMullerMethod(float2 input,float domainSize)
 {
-    // rngState = WangHash(input.y * domainSize + input.x);
-    rngState = PcgHash(input.y * domainSize + input.x);
+    rngState = WangHash(input.y * domainSize + input.x);
+    // rngState = PcgHash(input.y * domainSize + input.x);
 	
     float x1 = UniformRandom();
     float x2 = UniformRandom();
