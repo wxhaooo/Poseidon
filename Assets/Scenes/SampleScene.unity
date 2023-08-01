@@ -370,6 +370,7 @@ MonoBehaviour:
   _fftInRT: {fileID: 0}
   _fftOutRT: {fileID: 0}
   _displacementFieldRT: {fileID: 0}
+  _oceanNormalRT: {fileID: 0}
 --- !u!33 &1807868950
 MeshFilter:
   m_ObjectHideFlags: 0

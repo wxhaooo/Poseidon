@@ -2,8 +2,8 @@ Shader "Poseidon/Ocean"
 {
     Properties
     {
-        _Color ("Color", Color) = (1,1,1,1)
-        _MainTex ("Albedo (RGB)", 2D) = "white" {}
+        _OceanColor ("Color", Color) = (0.0429,0.17578,0.390,1)
+        _Normal ("Normal", 2D) = "black" { }
         _Displace ("Displace", 2D) = "black" { }
     }
     SubShader
@@ -33,8 +33,10 @@ Shader "Poseidon/Ocean"
                 float3 worldPos: TEXCOORD1;
             };
 
+            fixed4 _OceanColor;
             sampler2D _MainTex;
             sampler2D _Displace;
+            sampler2D _Normal;
             float4 _Displace_ST;
 
              v2f vert(appdata v)
@@ -51,7 +53,14 @@ Shader "Poseidon/Ocean"
 
              fixed4 frag(v2f i): SV_Target
              {
-                return fixed4(0.0429f,0.17578f,0.390f, 1);
+                fixed3 normal = UnityObjectToWorldNormal(tex2D(_Normal, i.uv).rgb);
+                 fixed3 lightDir = normalize(UnityWorldSpaceLightDir(i.worldPos));
+                fixed3 viewDir = normalize(UnityWorldSpaceViewDir(i.worldPos));
+                fixed3 reflectDir = reflect(-viewDir, normal);
+
+                fixed3 oceanDiffuse = _OceanColor * saturate(dot(lightDir, normal));
+                 
+                return fixed4(oceanDiffuse,1.0f);
              }
            
             ENDCG

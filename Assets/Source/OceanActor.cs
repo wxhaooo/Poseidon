@@ -87,12 +87,16 @@ public class OceanActor : MonoBehaviour
     [SerializeField]
     private RenderTexture _displacementFieldRT;
 
+    [SerializeField] 
+    private RenderTexture _oceanNormalRT;
+
     private int _kerCalculateGaussianNoise;
     private int _kerUpdateHeightSpectrum;
     private int _kerUpdateHorizontalSpectrum;
     private int _kerHorizontalFFT;
     private int _kerVerticalFFT;
     private int _kerCalculateDisplacementField;
+    private int _kerCalculateNormalAndBubbles;
 
     private int _fftPower = 0;
 
@@ -163,6 +167,7 @@ public class OceanActor : MonoBehaviour
 	    _fftInRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    _fftOutRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    _displacementFieldRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.ARGBFloat);
+	    _oceanNormalRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.ARGBFloat);
 	    
 	    _kerCalculateGaussianNoise = OceanComputeShader.FindKernel("CalculateGaussianNoise");
 	    _kerUpdateHeightSpectrum = OceanComputeShader.FindKernel("UpdateHeightSpectrum");
@@ -171,8 +176,11 @@ public class OceanActor : MonoBehaviour
 	    _kerHorizontalFFT = OceanComputeShader.FindKernel("HorizontalFFT");
 	    _kerVerticalFFT = OceanComputeShader.FindKernel("VerticalFFT");
 	    _kerCalculateDisplacementField = OceanComputeShader.FindKernel("CalculateDisplacementField");
+	    _kerCalculateNormalAndBubbles = OceanComputeShader.FindKernel("CalculateNormalAndBubbles");
 	    
 	    OceanComputeShader.SetInt("N", MeshSize);
+	    OceanComputeShader.SetFloat("domainSize", DomainSize);
+
 	    OceanComputeShader.SetFloat("heightScale", HeightScale);
 	    OceanComputeShader.SetFloat("horizontalScale", HorizontalScale);
 	    
@@ -190,6 +198,7 @@ public class OceanActor : MonoBehaviour
 	    UpdateHorizontalSpectrum();
 	    
 	    UpdateDisplacementField();
+	    UpdateNormalAndBubbles();
 	    
 	    UpdateOceanMaterial();
     }
@@ -197,6 +206,7 @@ public class OceanActor : MonoBehaviour
     private void UpdateOceanMaterial()
     {
 	    OceanMaterial.SetTexture("_Displace", _displacementFieldRT);
+	    OceanMaterial.SetTexture("_Normal",_oceanNormalRT);
     }
 
     private void ComputeFFT(ref RenderTexture rtIn, ref RenderTexture rtOut)
@@ -241,6 +251,13 @@ public class OceanActor : MonoBehaviour
 	    ComputeFFT(ref _horizontalSpectrumRT1, ref _horizontalFieldRT1);
     }
 
+    private void UpdateNormalAndBubbles()
+    {
+	    OceanComputeShader.SetTexture(_kerCalculateNormalAndBubbles, "displacementField", _displacementFieldRT);
+	    OceanComputeShader.SetTexture(_kerCalculateNormalAndBubbles, "oceanNormalRT", _oceanNormalRT);
+	    OceanComputeShader.Dispatch(_kerCalculateNormalAndBubbles, MeshSize / 32, MeshSize / 32, 1);
+    }
+
     private void UpdateDisplacementField()
     {
 		ComputeHeightField();
@@ -276,7 +293,6 @@ public class OceanActor : MonoBehaviour
 	    
 	    OceanComputeShader.SetFloat("A", A);
 	    OceanComputeShader.SetInt("spreadingModelType", 2);
-	    OceanComputeShader.SetFloat("L", DomainSize);
 	    OceanComputeShader.SetFloat("windDirRadian", windDirRadian);
 	    OceanComputeShader.SetFloat("windSpeed", WindSpeed);
 	    OceanComputeShader.SetFloat("dirDepend", DirDepend);
