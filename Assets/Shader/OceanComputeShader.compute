@@ -4,6 +4,7 @@
 #pragma kernel HorizontalFFT
 #pragma kernel VerticalFFT
 #pragma kernel CalculateDisplacementField
+#pragma kernel UpdateHorizontalSpectrum
 
 // #pragma kernel CorrectSignPhase0
 // #pragma kernel CorrectSignPhase1
@@ -23,7 +24,10 @@ float time;
 float4 windAndSeed;
 
 RWTexture2D<float2> GaussianNoiseTexture;
+
 RWTexture2D<float2> HeightSpectrumTexture;
+RWTexture2D<float2> HorizontalSpectrumTexture0;
+RWTexture2D<float2> HorizontalSpectrumTexture1;
 
 [numthreads(32,32,1)]
 void CalculateGaussianNoise(uint3 threadId:SV_DispatchThreadID)
@@ -60,9 +64,27 @@ void UpdateHeightSpectrum(uint3 threadId:SV_DispatchThreadID)
     HeightSpectrumTexture[threadId.xy] = heightSpectrum;
 }
 
+[numthreads(32,32,1)]
+void UpdateHorizontalSpectrum(uint3 threadId:SV_DispatchThreadID)
+{
+	float tIdx = threadId.x;
+	float tIdy = threadId.y;
+
+	float kx = (2.0f * PI * tIdx / N) - PI;
+	float ky = (2.0f * PI * tIdy / N) - PI;
+
+	float2 k = float2(kx,ky);
+	k /= max(0.001f, length(k));
+	
+	float2 hTilde = HeightSpectrumTexture[threadId.xy];
+	float2 horizontalSpectrum0 = ComplexMultiply(float2(0.0f,-k.x),hTilde);
+	float2 horizontalSpectrum1 = ComplexMultiply(float2(0.0f,-k.y),hTilde);
+
+	HorizontalSpectrumTexture0[threadId.xy] = horizontalSpectrum0;
+	HorizontalSpectrumTexture1[threadId.xy] = horizontalSpectrum1;
+}
 
 // FFT
-
 int Ns;
 
 RWTexture2D<float2> fftIn;
@@ -169,12 +191,19 @@ void VerticalFFT(uint3 threadId:SV_DispatchThreadID)
 
 // scale
 float heightScale;
+float horizontalScale;
+
 RWTexture2D<float2> heightField;
+RWTexture2D<float2> horizontalField0;
+RWTexture2D<float2> horizontalField1;
 RWTexture2D<float4> displacementField;
 
 [numthreads(32,32,1)]
 void CalculateDisplacementField(uint3 threadId:SV_DispatchThreadID)
 {
+	float x = length(horizontalField0[threadId.xy]) / (N * N) * horizontalScale;
 	float y = length(heightField[threadId.xy]) / (N * N) * heightScale;
-	displacementField[threadId.xy] = float4(0.0f,y,0.0f,0.0f);
+	float z = length(horizontalField1[threadId.xy]) / (N * N) * horizontalScale;
+	
+	displacementField[threadId.xy] = float4(x,y,z,1.0f);
 }

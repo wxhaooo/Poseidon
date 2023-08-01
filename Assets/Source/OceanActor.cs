@@ -28,6 +28,8 @@ public class OceanActor : MonoBehaviour
     public float WindScale = 2;     //风强
 
     public float HeightScale = 1;
+
+    public float HorizontalScale = 1;
     
     public float TimeScale = 1;     //时间影响
 
@@ -58,30 +60,36 @@ public class OceanActor : MonoBehaviour
     [SerializeField]
     private RenderTexture _gaussianRandomRT;
 
-    public RenderTexture GaussianRandomRT => _gaussianRandomRT;
-    
     [SerializeField]
     private RenderTexture _heightSpectrumRT;
-    public RenderTexture HeightSpectrumRT => _heightSpectrumRT;
+    
+    [SerializeField]
+    private RenderTexture _horizontalSpectrumRT0;
+
+    [SerializeField] 
+    private RenderTexture _horizontalSpectrumRT1;
 
     [SerializeField]
     private RenderTexture _heightFieldRT;
-    public RenderTexture HeightFieldRT => _heightFieldRT;
 	
     [SerializeField]
+    private RenderTexture _horizontalFieldRT0;
+
+    [SerializeField]
+    private RenderTexture _horizontalFieldRT1;
+	    
+    [SerializeField]
     private RenderTexture _fftInRT;
-    public RenderTexture FFTInRT => _fftInRT;
     
     [SerializeField]
     private RenderTexture _fftOutRT;
-    public RenderTexture FFTOutRT => _fftOutRT;
 	
     [SerializeField]
     private RenderTexture _displacementFieldRT;
-    public RenderTexture DisplacementFieldRT => _displacementFieldRT;
-    
+
     private int _kerCalculateGaussianNoise;
     private int _kerUpdateHeightSpectrum;
+    private int _kerUpdateHorizontalSpectrum;
     private int _kerHorizontalFFT;
     private int _kerVerticalFFT;
     private int _kerCalculateDisplacementField;
@@ -124,34 +132,50 @@ public class OceanActor : MonoBehaviour
     private void Init()
     {
 	    _fftPower = (int)Mathf.Log(MeshSize, 2.0f);
-	    // int fftPower = (int)Mathf.Log(MeshSize, 2.0f);
 
 	    if (_gaussianRandomRT != null && _gaussianRandomRT.IsCreated())
 	    {
 		    _gaussianRandomRT.Release();
+		    
 		    _heightSpectrumRT.Release();
+		    _horizontalSpectrumRT0.Release();
+		    _horizontalSpectrumRT1.Release();
+		    
 		    _heightFieldRT.Release();
+		    _horizontalFieldRT0.Release();
+		    _horizontalFieldRT1.Release();
+		    
 		    _fftInRT.Release();
 		    _fftOutRT.Release();
 		    _displacementFieldRT.Release();
 	    }
 
 	    _gaussianRandomRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+		
 	    _heightSpectrumRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
-
+	    _horizontalSpectrumRT0 = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+	    _horizontalSpectrumRT1 = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+	    
 	    _heightFieldRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+	    _horizontalFieldRT0 = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+	    _horizontalFieldRT1 = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
+	  
 	    _fftInRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    _fftOutRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    _displacementFieldRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.ARGBFloat);
 	    
 	    _kerCalculateGaussianNoise = OceanComputeShader.FindKernel("CalculateGaussianNoise");
 	    _kerUpdateHeightSpectrum = OceanComputeShader.FindKernel("UpdateHeightSpectrum");
+	    _kerUpdateHorizontalSpectrum = OceanComputeShader.FindKernel("UpdateHorizontalSpectrum");
+	    
 	    _kerHorizontalFFT = OceanComputeShader.FindKernel("HorizontalFFT");
 	    _kerVerticalFFT = OceanComputeShader.FindKernel("VerticalFFT");
 	    _kerCalculateDisplacementField = OceanComputeShader.FindKernel("CalculateDisplacementField");
 	    
 	    OceanComputeShader.SetInt("N", MeshSize);
 	    OceanComputeShader.SetFloat("heightScale", HeightScale);
+	    OceanComputeShader.SetFloat("horizontalScale", HorizontalScale);
+	    
 	    OceanComputeShader.SetTexture(_kerCalculateGaussianNoise, "GaussianNoiseTexture", _gaussianRandomRT);
 	    
 	    OceanComputeShader.Dispatch(_kerCalculateGaussianNoise,
@@ -163,52 +187,81 @@ public class OceanActor : MonoBehaviour
 	    _totalRuntimeTime += Time.deltaTime * TimeScale;
 	    
 	    UpdateHeightSpectrum();
-	    UpdateHeightField();
+	    UpdateHorizontalSpectrum();
+	    
+	    UpdateDisplacementField();
+	    
 	    UpdateOceanMaterial();
     }
 
     private void UpdateOceanMaterial()
     {
-	    OceanMaterial.SetTexture("_Displace", DisplacementFieldRT);
+	    OceanMaterial.SetTexture("_Displace", _displacementFieldRT);
     }
 
-    private void UpdateHeightField()
+    private void ComputeFFT(ref RenderTexture rtIn, ref RenderTexture rtOut)
     {
-		// Horizontal FFT
-		OceanComputeShader.SetInt("isReverse", 1);
-  
-		Graphics.CopyTexture(HeightSpectrumRT,_fftInRT);
+	    Graphics.CopyTexture(rtIn,_fftInRT);
 		
-		for (int i = 0; i < _fftPower; i++)
-		{
-			OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
-			OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftIn", _fftInRT);
-			OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftOut", _fftOutRT);
+	    for (int i = 0; i < _fftPower; i++)
+	    {
+		    OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
+		    OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftIn", _fftInRT);
+		    OceanComputeShader.SetTexture(_kerHorizontalFFT, "fftOut", _fftOutRT);
 			
-			OceanComputeShader.Dispatch(_kerHorizontalFFT, MeshSize / 32, MeshSize / 32, 1);
+		    OceanComputeShader.Dispatch(_kerHorizontalFFT, MeshSize / 32, MeshSize / 32, 1);
 			
-			//交换输入输出纹理
-			Graphics.CopyTexture(_fftOutRT,_fftInRT);
-		}
+		    //交换输入输出纹理
+		    Graphics.CopyTexture(_fftOutRT,_fftInRT);
+	    }
 		
-		// Vertical FFT
-		for (int i = 0; i < _fftPower; i++)
-		{
-			OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
-			OceanComputeShader.SetTexture(_kerVerticalFFT, "fftIn", _fftInRT);
-			OceanComputeShader.SetTexture(_kerVerticalFFT, "fftOut", _fftOutRT);
+	    // Vertical FFT
+	    for (int i = 0; i < _fftPower; i++)
+	    {
+		    OceanComputeShader.SetInt("Ns", (int)Mathf.Pow(2, i));
+		    OceanComputeShader.SetTexture(_kerVerticalFFT, "fftIn", _fftInRT);
+		    OceanComputeShader.SetTexture(_kerVerticalFFT, "fftOut", _fftOutRT);
 			
-			OceanComputeShader.Dispatch(_kerVerticalFFT, MeshSize / 32, MeshSize / 32, 1);
+		    OceanComputeShader.Dispatch(_kerVerticalFFT, MeshSize / 32, MeshSize / 32, 1);
 			
-			Graphics.CopyTexture(_fftOutRT,_fftInRT);
-		}
-	 
-		Graphics.CopyTexture(_fftInRT,_heightFieldRT);
+		    Graphics.CopyTexture(_fftOutRT,_fftInRT);
+	    }
+
+	    Graphics.CopyTexture(_fftInRT, rtOut);
+    }
+    
+    private void ComputeHeightField()
+    {
+	    ComputeFFT(ref _heightSpectrumRT,ref _heightFieldRT);
+    }
+
+    private void ComputeHorizontalField()
+    {
+	    ComputeFFT(ref _horizontalSpectrumRT0, ref _horizontalFieldRT0);
+	    ComputeFFT(ref _horizontalSpectrumRT1, ref _horizontalFieldRT1);
+    }
+
+    private void UpdateDisplacementField()
+    {
+		ComputeHeightField();
+		ComputeHorizontalField();
 		
 		// Scale And Get Height Field
 		OceanComputeShader.SetTexture(_kerCalculateDisplacementField, "heightField", _heightFieldRT);
+		OceanComputeShader.SetTexture(_kerCalculateDisplacementField, "horizontalField0", _horizontalFieldRT0);
+		OceanComputeShader.SetTexture(_kerCalculateDisplacementField, "horizontalField1", _horizontalFieldRT1);
 		OceanComputeShader.SetTexture(_kerCalculateDisplacementField, "displacementField", _displacementFieldRT);
+		
 		OceanComputeShader.Dispatch(_kerCalculateDisplacementField, MeshSize / 32, MeshSize / 32, 1);
+    }
+
+    private void UpdateHorizontalSpectrum()
+    {
+	    OceanComputeShader.SetTexture(_kerUpdateHorizontalSpectrum, "HeightSpectrumTexture", _heightSpectrumRT);
+	    OceanComputeShader.SetTexture(_kerUpdateHorizontalSpectrum, "HorizontalSpectrumTexture0", _horizontalSpectrumRT0);
+	    OceanComputeShader.SetTexture(_kerUpdateHorizontalSpectrum, "HorizontalSpectrumTexture1", _horizontalSpectrumRT1);
+
+	    OceanComputeShader.Dispatch(_kerUpdateHorizontalSpectrum, MeshSize / 32, MeshSize / 32, 1);
     }
 
     private void UpdateHeightSpectrum()
