@@ -114,15 +114,15 @@ public class OceanActor : MonoBehaviour
 		    _render = gameObject.AddComponent<MeshRenderer>();
 	    }
 	    
-	    _mesh = new Mesh();
-	    _filter.mesh = _mesh;
+	    // _mesh = new Mesh();
+	    // _filter.mesh = _mesh;
 	    _render.material = OceanMaterial;
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        CreateMesh();
+        // CreateMesh();
 
         Init();
     }
