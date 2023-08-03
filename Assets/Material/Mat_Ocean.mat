@@ -24,6 +24,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _BumpTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _DetailAlbedoMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -42,6 +46,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
         m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Gradient:
+        m_Texture: {fileID: 2800000, guid: 1324fadd50e5c4a48962cac0a81efe28, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
@@ -64,12 +76,18 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _WaterTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _BumpScale: 1
     - _Cutoff: 0.5
+    - _DepthThreshold: 0.6
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
+    - _Gloss: 100
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
@@ -77,13 +95,23 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
+    - _Refract: 0.07
     - _SmoothnessTextureChannel: 0
+    - _Specular: 20
+    - _SpecularGloss: 128
     - _SpecularHighlights: 1
+    - _SpecularPower: 0.22
     - _SrcBlend: 1
     - _UVSec: 0
+    - _WaterSpeed: 0.74
+    - _WaveWidth: 0.01
     - _ZWrite: 1
+    - _blockNum: 30
+    - _lineThick: 1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _OceanColor: {r: 0.010012442, g: 0.4082583, b: 0.7075472, a: 1}
+    - _OceanColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Range: {r: 0.51, g: 0.1, b: 0.37, a: 0.97}
+    - _SpecColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
