@@ -4,15 +4,15 @@ Shader "Poseidon/Ocean"
     {
         _OceanColor ("Color", Color) = (0.0429,0.17578,0.390,1)
         _Normal ("Normal", 2D) = "black" { }
-        _Displace ("Displace", 2D) = "black" { }
         _Gradient ("Gradient", 2D) = "black" { }
-        _SpecularGloss ("SpecularGloss",float) = 2.0
-        _SpecularPower ("SpecularPower",float) = 10.0
-        _Range ("Range",vector) = (0.13, 1.53, 0.37, 0.78)
+    	_Spray("Spray",2D) = "White"{}
+    	
+    	_SpraySpeed("SpraySpeed",float) = 1
+    	_SprayEdge("SprayEdge",float) = 1
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="Transparent" }
 		LOD 100
 		Blend SrcAlpha OneMinusSrcAlpha 
         
@@ -49,14 +49,13 @@ Shader "Poseidon/Ocean"
 
             sampler2D _Normal;
             sampler2D _Displace;
-            sampler2D _Gradient;
-            
-            
-            float _SpecularGloss;
-            float _SpecularPower;
-            float4 _Range;
+            sampler2D _Spray;
+
+            float _SpraySpeed;
+            float _SprayEdge;
             
             float4 _Displace_ST;
+            float4 _FoamTex_ST;
 
             fixed4 cosine_gradient(float x,  fixed4 phase, fixed4 amp, fixed4 freq, fixed4 offset)
             {
@@ -95,16 +94,20 @@ Shader "Poseidon/Ocean"
 				return lerp(lerp(w00, w10, u.x), lerp(w01, w11, u.x), u.y);
 			}
 
-            float3 swell(float3 normal , float3 pos , float anisotropy){
+            float3 swell(float3 pos , float anisotropy){
+            	// 生成的高度
 				float height = noise(pos.xz * 0.1,0);
-				height *= anisotropy ;
-				normal = normalize(
-					cross ( 
+				height *= anisotropy;
+            	// float3 swelledNormal = normalize(cross(ddy(pos),ddx(pos)));
+				float3 swelledNormal = normalize(
+					cross (
+						// z方向，理解成对不同轴进行偏导数然后向量相加
 						float3(0,ddy(height),1),
+						// x方向
 						float3(1,ddx(height),0)
 					)
 				);
-				return normal;
+				return swelledNormal;
 			}
 
              v2f vert(appdata v)
@@ -130,37 +133,52 @@ Shader "Poseidon/Ocean"
 				const fixed4 amplitudes = fixed4(4.02, 0.34, 0.65, 0.);
 				const fixed4 frequencies = fixed4(0.00, 0.48, 0.08, 0.);
 				const fixed4 offsets = fixed4(0.00, 0.16, 0.00, 0.);
-
+    
              	fixed3 color;
-
+    
              	// 水深效果
+             	// 读取写入的深度，因为水是半透明物体，所以写入的是水底的深度
              	float sceneZ = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture, UNITY_PROJ_COORD(i.projPos)));
+             	// 读出水面的深度，直接读的水面点的深度，所以是水面的深度
 				float partZ = i.projPos.z;
-				float volmeZ = saturate((sceneZ - partZ)/10.0f);
-
-				fixed4 cos_grad = cosine_gradient(1-volmeZ, phases, amplitudes, frequencies, offsets);
+             	float diffZ = sceneZ - partZ;
+				float volmeZ = saturate(diffZ / 5.0f);
+    
+				fixed4 cos_grad = cosine_gradient(1.5-volmeZ, phases, amplitudes, frequencies, offsets);
   				cos_grad = clamp(cos_grad, 0., 1.);
   				color.rgb = cos_grad.rgb;
-
-             	half3 worldViewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
-             	fixed3 worldNormal = UnityObjectToWorldNormal(tex2D(_Normal, i.uv).rgb);
+    
+    			half3 worldViewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
+    			fixed3 worldNormal = UnityObjectToWorldNormal(tex2D(_Normal, i.uv).rgb);
+    	
+				// float3 v = i.worldPos - _WorldSpaceCameraPos;
+				// float anisotropy = saturate(1/(ddy(length ( v.xz )))/5);
+				// float3 swelledNormal = swell(i.worldPos , anisotropy);
+             	float3 swelledNormal = worldNormal;
              	
-				float3 v = i.worldPos - _WorldSpaceCameraPos;
-				float anisotropy = saturate(1/(ddy(length ( v.xz )))/5);
-				float3 swelledNormal = swell(worldNormal , i.worldPos , anisotropy);
-
 				// 反射光
                 half3 reflDir = reflect(-worldViewDir, swelledNormal);
              	fixed4 reflectionColor = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, reflDir, 0);
-
+    
              	color = lerp(color , reflectionColor , reflDir);
-
+    
+             	// float height = i.projPos.y;
+             	float height = noise(i.worldPos.xz * 0.1,0);
+             	
+             	//岸边浪花
+                i.uv.y -= _Time.x * _SpraySpeed;
+                fixed4 foamTexCol = tex2D(_Spray,i.uv);
+                fixed4 foamCol = saturate((0.8-height) * (foamTexCol.r +foamTexCol.g)* diffZ) * step(diffZ,_SprayEdge);
+                foamCol = step(0.5,foamCol);
+                color += foamCol;
+    
              	// 菲涅尔
              	float f0 = 0.02;
     			float vReflect = f0 + (1-f0) * pow((1 - dot(worldViewDir,swelledNormal)),5);
 				vReflect = saturate(vReflect * 2.0);
-
-             	color = lerp(color , reflectionColor , vReflect);
+    
+    			color = lerp(color , reflectionColor , vReflect);
+    
                 // fixed3 worldLightDir = normalize(_WorldSpaceLightPos0);
                 // fixed3 worldViewDir = normalize(UnityWorldSpaceViewDir(i.worldPos));
                 // fixed3 worldHalfViewDir = normalize(worldLightDir + worldViewDir);
@@ -180,13 +198,13 @@ Shader "Poseidon/Ocean"
                  // fixed3 diffuse = _LightColor0.rgb * depthColor * saturate(dot(worldLightDir,worldNormal));
                  // fixed3 specular = pow(NDotV,_SpecularGloss) * _SpecularPower;
                  // fixed3 ambient = depthColor * UNITY_LIGHTMODEL_AMBIENT.xyz;
-
+    
                  //深度 控制 颜色
 			    // half water_w = min(_Range.w, deltaDepthInViewSpace)/_Range.w; 
-
+    
                  // fixed3 color = NDotL * diffuse + specular;
                  // color * ambient;
-
+    
                  return fixed4(color,volmeZ);
              }
 

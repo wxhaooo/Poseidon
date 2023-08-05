@@ -527,7 +527,7 @@ MonoBehaviour:
   DomainSize: 100
   A: 10
   WindScale: 3
-  HeightScale: 2
+  HeightScale: 10
   HorizontalScale: 20
   TimeScale: 2
   WindSpeed: 2
