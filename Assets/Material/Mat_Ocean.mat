@@ -84,6 +84,14 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _Wave:
+        m_Texture: {fileID: 2800000, guid: 1651142b81f64564fac8368276b21633, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _WaveNoise:
+        m_Texture: {fileID: 2800000, guid: 96f32db292c3597418885b46eb725ed2, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _BumpScale: 1
@@ -105,11 +113,17 @@ Material:
     - _SpecularGloss: 128
     - _SpecularHighlights: 1
     - _SpecularPower: 0.22
-    - _SprayEdge: 1.04
+    - _SprayEdge: 0.9
+    - _SprayG: 1
+    - _SprayR: 1
     - _SpraySpeed: 0.3
     - _SrcBlend: 1
     - _UVSec: 0
     - _WaterSpeed: 0.74
+    - _WaveDelta: 0.5
+    - _WaveIntensityExtra: 100
+    - _WaveRange: 0.95
+    - _WaveSpeed: 0.65
     - _WaveWidth: 0.01
     - _ZWrite: 1
     - _blockNum: 30

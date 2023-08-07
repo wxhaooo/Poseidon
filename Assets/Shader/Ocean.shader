@@ -5,10 +5,18 @@ Shader "Poseidon/Ocean"
         _OceanColor ("Color", Color) = (0.0429,0.17578,0.390,1)
         _Normal ("Normal", 2D) = "black" { }
         _Gradient ("Gradient", 2D) = "black" { }
-    	_Spray("Spray",2D) = "White"{}
     	
-    	_SpraySpeed("SpraySpeed",float) = 1
-    	_SprayEdge("SprayEdge",float) = 1
+    	_Wave("Wave",2D) = "White"{}
+    	_WaveNoise("WaveNoise",2D) = "White"{}
+    	_WaveSpeed("WaveSpeed",float) = 1
+    	_WaveRange("WaveRange",float) = 1
+    	_WaveDelta("WaveDelta",float) = 0.5
+    	_WaveIntensityExtra("WaveIntensityExtra",float) = 5.0
+//    	_Spray("Spray",2D) = "White"{}
+        //    	_SpraySpeed("SpraySpeed",float) = 1
+//    	_SprayEdge("SprayEdge",float) = 1
+//    	_SprayR("SprayR",float) = 1
+//    	_SprayG("SprayG",float) = 1
     }
     SubShader
     {
@@ -49,10 +57,19 @@ Shader "Poseidon/Ocean"
 
             sampler2D _Normal;
             sampler2D _Displace;
-            sampler2D _Spray;
 
-            float _SpraySpeed;
-            float _SprayEdge;
+            sampler2D _Wave;
+            sampler2D _WaveNoise;
+
+            float _WaveSpeed;
+            float _WaveRange;
+            float _WaveDelta;
+            float _WaveIntensityExtra;
+            // sampler2D _Spray;
+            // float _SpraySpeed;
+            // float _SprayEdge;
+            // float _SprayR;
+            // float _SprayG;
             
             float4 _Displace_ST;
             float4 _FoamTex_ST;
@@ -142,7 +159,7 @@ Shader "Poseidon/Ocean"
              	// 读出水面的深度，直接读的水面点的深度，所以是水面的深度
 				float partZ = i.projPos.z;
              	float diffZ = sceneZ - partZ;
-				float volmeZ = saturate(diffZ / 5.0f);
+				float volmeZ = saturate(diffZ / 10.0f);
     
 				fixed4 cos_grad = cosine_gradient(1.5-volmeZ, phases, amplitudes, frequencies, offsets);
   				cos_grad = clamp(cos_grad, 0., 1.);
@@ -161,23 +178,34 @@ Shader "Poseidon/Ocean"
              	fixed4 reflectionColor = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, reflDir, 0);
     
              	color = lerp(color , reflectionColor , reflDir);
-    
-             	// float height = i.projPos.y;
-             	float height = noise(i.worldPos.xz * 0.1,0);
              	
+             	// float2 uv = TRANSFORM_TEX(i.uv, _Displace);
+             	// float4 displace = tex2Dlod(_Displace, float4(uv, 0.0, 0.0));
+             	// float height = displace.y;
+
+             	half waveIntensity = 1.0 - min(_WaveRange,diffZ) / _WaveRange;
+             	fixed4 noiseColor = tex2D(_WaveNoise,i.uv);
+             	fixed4 waveColor = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + noiseColor.r),1) + offsets);
+             	waveColor.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
+             	fixed4 waveColor2 = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r),1) + offsets);
+             	waveColor2.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
+
+             	fixed3 waveColorRes = (waveColor.rgb + waveColor2.rgb) * waveIntensity * _WaveIntensityExtra;
+
+             	color += waveColorRes;
              	//岸边浪花
-                i.uv.y -= _Time.x * _SpraySpeed;
-                fixed4 foamTexCol = tex2D(_Spray,i.uv);
-                fixed4 foamCol = saturate((0.8-height) * (foamTexCol.r +foamTexCol.g)* diffZ) * step(diffZ,_SprayEdge);
-                foamCol = step(0.5,foamCol);
-                color += foamCol;
+                // i.uv.y -= _Time.x * _SpraySpeed;
+                // fixed4 foamTexCol = tex2D(_Spray,i.uv);
+                // fixed4 foamCol = saturate((0.8-height) * (_SprayR * foamTexCol.r + _SprayG * foamTexCol.g)* diffZ) * step(diffZ,_SprayEdge);
+                // foamCol = step(0.5,foamCol);
+                // color += foamCol;
     
-             	// 菲涅尔
-             	float f0 = 0.02;
-    			float vReflect = f0 + (1-f0) * pow((1 - dot(worldViewDir,swelledNormal)),5);
-				vReflect = saturate(vReflect * 2.0);
-    
-    			color = lerp(color , reflectionColor , vReflect);
+    //          	// 菲涅尔
+	//          	float f0 = 0.02;
+    // 			float vReflect = f0 + (1-f0) * pow((1 - dot(worldViewDir,swelledNormal)),5);
+				// vReflect = saturate(vReflect * 2.0);
+    //
+    // 			color = lerp(color , reflectionColor , vReflect);
     
                 // fixed3 worldLightDir = normalize(_WorldSpaceLightPos0);
                 // fixed3 worldViewDir = normalize(UnityWorldSpaceViewDir(i.worldPos));
@@ -204,7 +232,7 @@ Shader "Poseidon/Ocean"
     
                  // fixed3 color = NDotL * diffuse + specular;
                  // color * ambient;
-    
+
                  return fixed4(color,volmeZ);
              }
 
