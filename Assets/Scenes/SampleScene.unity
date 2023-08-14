@@ -534,6 +534,8 @@ MonoBehaviour:
   WindAngle: 45
   DirDepend: 0.07
   WindAndSeed: {x: 1, y: 1, z: 0, w: 0}
+  BubbleThreshold: 0.6
+  BubbleScale: 1
   OceanComputeShader: {fileID: 7200000, guid: 5cfe2e3f7b68ae44ba960f35f755b88b, type: 3}
   OceanMaterial: {fileID: 2100000, guid: 1dc96efa9087faf4082f76725d23dba5, type: 2}
   _gaussianRandomRT: {fileID: 0}
@@ -547,6 +549,7 @@ MonoBehaviour:
   _fftOutRT: {fileID: 0}
   _displacementFieldRT: {fileID: 0}
   _oceanNormalRT: {fileID: 0}
+  _bubbleRT: {fileID: 0}
 --- !u!33 &1807868950
 MeshFilter:
   m_ObjectHideFlags: 0

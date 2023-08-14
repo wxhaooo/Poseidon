@@ -40,6 +40,10 @@ public class OceanActor : MonoBehaviour
     public float DirDepend = 0.07f;
 
     public Vector4 WindAndSeed = new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+
+    public float BubbleThreshold = 0.6f;
+
+    public float BubbleScale = 1.0f;
 	
     private float _totalRuntimeTime = 0.0f;
 
@@ -90,6 +94,9 @@ public class OceanActor : MonoBehaviour
     [SerializeField] 
     private RenderTexture _oceanNormalRT;
 
+    [SerializeField]
+    private RenderTexture _bubbleRT;
+
     private int _kerCalculateGaussianNoise;
     private int _kerUpdateHeightSpectrum;
     private int _kerUpdateHorizontalSpectrum;
@@ -114,15 +121,12 @@ public class OceanActor : MonoBehaviour
 		    _render = gameObject.AddComponent<MeshRenderer>();
 	    }
 	    
-	    // _mesh = new Mesh();
-	    // _filter.mesh = _mesh;
-	    _render.material = OceanMaterial;
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        // CreateMesh();
+        CreateMesh();
 
         Init();
     }
@@ -135,6 +139,8 @@ public class OceanActor : MonoBehaviour
     
     private void Init()
     {
+	    _render.material = OceanMaterial;
+
 	    _fftPower = (int)Mathf.Log(MeshSize, 2.0f);
 
 	    if (_gaussianRandomRT != null && _gaussianRandomRT.IsCreated())
@@ -152,6 +158,9 @@ public class OceanActor : MonoBehaviour
 		    _fftInRT.Release();
 		    _fftOutRT.Release();
 		    _displacementFieldRT.Release();
+		    
+		    _oceanNormalRT.Release();
+		    _bubbleRT.Release();
 	    }
 
 	    _gaussianRandomRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
@@ -168,6 +177,7 @@ public class OceanActor : MonoBehaviour
 	    _fftOutRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    _displacementFieldRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.ARGBFloat);
 	    _oceanNormalRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.ARGBFloat);
+	    _bubbleRT = RenderHelper.CreateRT(MeshSize, RenderTextureFormat.RGFloat);
 	    
 	    _kerCalculateGaussianNoise = OceanComputeShader.FindKernel("CalculateGaussianNoise");
 	    _kerUpdateHeightSpectrum = OceanComputeShader.FindKernel("UpdateHeightSpectrum");
@@ -194,6 +204,9 @@ public class OceanActor : MonoBehaviour
     {
 	    _totalRuntimeTime += Time.deltaTime * TimeScale;
 	    
+	    OceanComputeShader.SetFloat("heightScale", HeightScale);
+	    OceanComputeShader.SetFloat("horizontalScale", HorizontalScale);
+	    
 	    UpdateHeightSpectrum();
 	    UpdateHorizontalSpectrum();
 	    
@@ -207,6 +220,7 @@ public class OceanActor : MonoBehaviour
     {
 	    OceanMaterial.SetTexture("_Displace", _displacementFieldRT);
 	    OceanMaterial.SetTexture("_Normal",_oceanNormalRT);
+	    OceanMaterial.SetTexture("_Bubble",_bubbleRT);
     }
 
     private void ComputeFFT(ref RenderTexture rtIn, ref RenderTexture rtOut)
@@ -255,6 +269,9 @@ public class OceanActor : MonoBehaviour
     {
 	    OceanComputeShader.SetTexture(_kerCalculateNormalAndBubbles, "displacementField", _displacementFieldRT);
 	    OceanComputeShader.SetTexture(_kerCalculateNormalAndBubbles, "oceanNormalRT", _oceanNormalRT);
+	    OceanComputeShader.SetFloat("bubbleThreshold", BubbleThreshold);
+	    OceanComputeShader.SetFloat("bubbleScale", BubbleScale);
+	    OceanComputeShader.SetTexture(_kerCalculateNormalAndBubbles,"bubbleRT",_bubbleRT); 
 	    OceanComputeShader.Dispatch(_kerCalculateNormalAndBubbles, MeshSize / 32, MeshSize / 32, 1);
     }
 
@@ -308,6 +325,9 @@ public class OceanActor : MonoBehaviour
 
     private void CreateMesh()
     {
+	    if (_filter.mesh != null && _filter.mesh.vertexCount > 0) return;
+	    _mesh = new Mesh();
+	    
 	    _vertIndices = new int[(MeshSize - 1) * (MeshSize - 1) * 6];
 	    _positions = new Vector3[MeshSize * MeshSize];
 	    _uvs = new Vector2[MeshSize * MeshSize];
@@ -336,5 +356,7 @@ public class OceanActor : MonoBehaviour
 	    _mesh.vertices = _positions;
 	    _mesh.SetIndices(_vertIndices, MeshTopology.Triangles, 0);
 	    _mesh.uv = _uvs;
+
+	    _filter.mesh = _mesh;
     }
 }

@@ -198,6 +198,8 @@ RWTexture2D<float2> horizontalField0;
 RWTexture2D<float2> horizontalField1;
 RWTexture2D<float4> displacementField;
 
+
+
 [numthreads(32,32,1)]
 void CalculateDisplacementField(uint3 threadId:SV_DispatchThreadID)
 {
@@ -210,6 +212,9 @@ void CalculateDisplacementField(uint3 threadId:SV_DispatchThreadID)
 
 float domainSize;
 RWTexture2D<float4> oceanNormalRT;
+RWTexture2D<float4> bubbleRT;
+float bubbleThreshold;
+float bubbleScale;
 
 [numthreads(32,32,1)]
 void CalculateNormalAndBubbles(uint3 threadId:SV_DispatchThreadID)
@@ -242,12 +247,13 @@ void CalculateNormalAndBubbles(uint3 threadId:SV_DispatchThreadID)
 	float3 normal = normalize(cross(tangentZ, tangentX));
     
 	//计算泡沫
-	// float3 ddx = x2D - x1D;
-	// float3 ddz = z2D - z1D;
+	float3 ddx = x2D - x1D;
+	float3 ddz = z2D - z1D;
 	//雅可比行列式
-	// float jacobian = (1.0f + ddx.x) * (1.0f + ddz.z) - ddx.z * ddz.x;
-	// jacobian = saturate(max(0, BubblesThreshold - saturate(jacobian)) * BubblesScale);
+	float jacobian = (1.0f + ddx.x) * (1.0f + ddz.z) - ddx.z * ddz.x;
+	jacobian = saturate(max(0, bubbleThreshold - saturate(jacobian)) * bubbleScale);
 
 	oceanNormalRT[threadId.xy] = float4(normal, 0);
+	bubbleRT[threadId.xy] = float4(jacobian,0.0,0.0,0.0);
 	// BubblesRT[id.xy] = float4(jacobian, jacobian, jacobian, 0);
 }

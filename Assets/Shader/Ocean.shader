@@ -3,8 +3,10 @@ Shader "Poseidon/Ocean"
     Properties
     {
         _OceanColor ("Color", Color) = (0.0429,0.17578,0.390,1)
+    	_BubbleColor("BubbleColor",Color) = (0.88,0.88,0.88,0.9)
         _Normal ("Normal", 2D) = "black" { }
         _Gradient ("Gradient", 2D) = "black" { }
+    	_Bubble("Bubble",2D) = "black"{}
     	
     	_Wave("Wave",2D) = "White"{}
     	_WaveNoise("WaveNoise",2D) = "White"{}
@@ -57,6 +59,7 @@ Shader "Poseidon/Ocean"
 
             sampler2D _Normal;
             sampler2D _Displace;
+            sampler2D _Bubble;
 
             sampler2D _Wave;
             sampler2D _WaveNoise;
@@ -65,6 +68,8 @@ Shader "Poseidon/Ocean"
             float _WaveRange;
             float _WaveDelta;
             float _WaveIntensityExtra;
+
+            float4 _BubbleColor;
             // sampler2D _Spray;
             // float _SpraySpeed;
             // float _SprayEdge;
@@ -73,6 +78,7 @@ Shader "Poseidon/Ocean"
             
             float4 _Displace_ST;
             float4 _FoamTex_ST;
+            float4 _Bubble_ST;
 
             fixed4 cosine_gradient(float x,  fixed4 phase, fixed4 amp, fixed4 freq, fixed4 offset)
             {
@@ -193,6 +199,13 @@ Shader "Poseidon/Ocean"
              	fixed3 waveColorRes = (waveColor.rgb + waveColor2.rgb) * waveIntensity * _WaveIntensityExtra;
 
              	color += waveColorRes;
+
+             	// 浪尖白水
+				float2 uv = TRANSFORM_TEX(i.uv, _Bubble);
+             	fixed3 whiteWaterZone = tex2Dlod(_Bubble,float4(uv,0.0,0.0)).r;
+             	
+             	if(whiteWaterZone.r >= 0.3f)
+             		color.rgb = _BubbleColor;
              	//岸边浪花
                 // i.uv.y -= _Time.x * _SpraySpeed;
                 // fixed4 foamTexCol = tex2D(_Spray,i.uv);
