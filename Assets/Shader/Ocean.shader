@@ -182,23 +182,24 @@ Shader "Poseidon/Ocean"
 				// 反射光
                 half3 reflDir = reflect(-worldViewDir, swelledNormal);
              	fixed4 reflectionColor = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, reflDir, 0);
-    
-             	color = lerp(color , reflectionColor , reflDir);
+
+             	color = reflectionColor;
+             	// color = lerp(color , reflectionColor , reflDir);
              	
              	// float2 uv = TRANSFORM_TEX(i.uv, _Displace);
              	// float4 displace = tex2Dlod(_Displace, float4(uv, 0.0, 0.0));
              	// float height = displace.y;
 
-             	half waveIntensity = 1.0 - min(_WaveRange,diffZ) / _WaveRange;
-             	fixed4 noiseColor = tex2D(_WaveNoise,i.uv);
-             	fixed4 waveColor = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + noiseColor.r),1) + offsets);
-             	waveColor.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
-             	fixed4 waveColor2 = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r),1) + offsets);
-             	waveColor2.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
-
-             	fixed3 waveColorRes = (waveColor.rgb + waveColor2.rgb) * waveIntensity * _WaveIntensityExtra;
-
-             	color += waveColorRes;
+             	// half waveIntensity = 1.0 - min(_WaveRange,diffZ) / _WaveRange;
+             	// fixed4 noiseColor = tex2D(_WaveNoise,i.uv);
+             	// fixed4 waveColor = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + noiseColor.r),1) + offsets);
+             	// waveColor.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
+             	// fixed4 waveColor2 = tex2D(_Wave,float2(waveIntensity + sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r),1) + offsets);
+             	// waveColor2.rgb *= (1.0 - (sin(_Time.y * _WaveSpeed + _WaveDelta + noiseColor.r) + 1.0) / 2.0) * noiseColor.r;
+	             //
+             	// fixed3 waveColorRes = (waveColor.rgb + waveColor2.rgb) * waveIntensity * _WaveIntensityExtra;
+	             //
+             	// color += waveColorRes;
 
              	// 浪尖白水
 				float2 uv = TRANSFORM_TEX(i.uv, _Bubble);

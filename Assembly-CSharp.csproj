@@ -45,7 +45,9 @@
      <Compile Include="Assets\Source\RenderHelper.cs" />
      <Folder Include="Assets" />
      <None Include="Assets\Shader\NoiseHelper.cginc" />
+     <None Include="Assets\Shader\GlassUpdated.shader" />
      <None Include="Assets\Shader\MathHelper.cginc" />
+     <None Include="Assets\Shader\Glass.shader" />
      <Folder Include="Assets\Shader" />
      <Folder Include="Assets\Source" />
      <Folder Include="Assets\Reference" />
@@ -56,6 +58,7 @@
      <None Include="Assets\Shader\Constant.cginc" />
      <Folder Include="Assets\Mesh" />
      <Folder Include="Assets\Scenes" />
+     <Folder Include="Assets\Scenes\SampleScene" />
      <Folder Include="Assets\Texture" />
      <Folder Include="Assets\Tmp" />
      <Reference Include="UnityEngine">
